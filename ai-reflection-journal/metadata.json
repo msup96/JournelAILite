@@ -1,0 +1,10 @@
+{
+  "name": "AI Reflection Journal",
+  "description": "User-authenticated AI reflection journal powered by Gemini and Firestore with mood tracking, voice dictation, and user-isolated entry history.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

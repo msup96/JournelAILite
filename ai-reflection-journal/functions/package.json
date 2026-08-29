@@ -1,0 +1,28 @@
+{
+  "name": "ai-reflection-journal-functions",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.2",
+    "nodemailer": "^6.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/nodemailer": "^6.4.17",
+    "typescript": "~5.8.2"
+  },
+  "private": true
+}

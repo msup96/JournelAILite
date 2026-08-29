@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.email is string && data.email.size() <= 150 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+             (!('currentStreak' in data) || data.currentStreak is number) &&
+             (!('lastEntryDate' in data) || (data.lastEntryDate is string && data.lastEntryDate.size() <= 30)) &&
+             (!('lastEntryTimestamp' in data) || data.lastEntryTimestamp is number) &&
+             (!('themePreference' in data) || (data.themePreference in ['light', 'dark', 'system'])) &&
+             (!('reflectionFocus' in data) || (data.reflectionFocus is string && data.reflectionFocus.size() <= 100)) &&
+             (!('emailRemindersEnabled' in data) || data.emailRemindersEnabled is bool) &&
+             (!('reminderTime' in data) || (data.reminderTime is string && data.reminderTime.size() <= 10)) &&
+             (!('reminderTimezone' in data) || (data.reminderTimezone is string && data.reminderTimezone.size() <= 50)) &&
+             (!('lastReminderSentAt' in data) || (data.lastReminderSentAt is string && data.lastReminderSentAt.size() <= 50));
+    }
+
+    function isValidReminderLog(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userEmail is string && data.userEmail.size() <= 150 &&
+             data.sentAt is string && data.sentAt.size() <= 50 &&
+             data.status in ['delivered', 'queued', 'skipped'] &&
+             (!('promptIncluded' in data) || (data.promptIncluded is string && data.promptIncluded.size() <= 1000)) &&
+             (!('reason' in data) || (data.reason is string && data.reason.size() <= 500)) &&
+             (!('deliveryMethod' in data) || (data.deliveryMethod is string && data.deliveryMethod.size() <= 50));
+    }
+
+    function isValidJournalEntry(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 15000 &&
+             data.mood is string && data.mood.size() <= 30 &&
+             (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 150)) &&
+             (!('moodScore' in data) || data.moodScore is number) &&
+             (!('tags' in data) || (data.tags is list && data.tags.size() <= 10)) &&
+             (!('isFavorite' in data) || data.isFavorite is bool) &&
+             (!('aiSummary' in data) || (data.aiSummary is string && data.aiSummary.size() <= 2000)) &&
+             (!('aiInsights' in data) || (data.aiInsights is string && data.aiInsights.size() <= 5000)) &&
+             (!('aiQuestions' in data) || (data.aiQuestions is string && data.aiQuestions.size() <= 2000)) &&
+             (!('audioTranscript' in data) || (data.audioTranscript is string && data.audioTranscript.size() <= 15000));
+    }
+
+    // Health check test probe document
+    match /test/{testId} {
+      allow get: if true;
+      allow write: if false;
+    }
+
+    // User profiles collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming()) &&
+                    incoming().userId == existing().userId;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Automated reminder email logs subcollection
+      match /reminder_logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(logId) && isValidReminderLog(incoming(), userId);
+        allow update: if false; // Reminder logs are immutable once dispatched
+        allow delete: if isOwner(userId) && isValidId(logId);
+      }
+    }
+
+    // Journal Entries collection
+    match /entries/{entryId} {
+      allow get: if isSignedIn() && isValidId(entryId) && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(entryId) && isValidJournalEntry(incoming());
+      allow update: if isSignedIn() && isValidId(entryId) &&
+                    existing().userId == request.auth.uid &&
+                    incoming().userId == existing().userId &&
+                    isValidJournalEntry(incoming());
+      allow delete: if isSignedIn() && isValidId(entryId) && existing().userId == request.auth.uid;
+    }
+  }
+}
